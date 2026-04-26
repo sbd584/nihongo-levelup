@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express, { Response, NextFunction } from 'express';
 import type { Request } from 'express';
+import cors from 'cors';
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "node:http";
@@ -23,6 +24,17 @@ app.use(
   }),
 );
 
+app.use(cors({
+  origin: [
+    'https://www.perplexity.ai',
+    'https://sites.pplx.app',
+    /\.pplx\.app$/,
+    /\.perplexity\.ai$/,
+    'http://localhost:5000',
+    'http://localhost:3000',
+  ],
+  credentials: true,
+}));
 app.use(express.urlencoded({ extended: false }));
 
 export function log(message: string, source = "express") {
