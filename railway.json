@@ -6,7 +6,6 @@
   },
   "deploy": {
     "startCommand": "NODE_ENV=production node dist/index.cjs",
-    "healthcheckPath": "/api/stats",
     "restartPolicyType": "ON_FAILURE"
   }
 }
