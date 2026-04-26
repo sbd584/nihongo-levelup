@@ -1,6 +1,8 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import { checkIns, stats, srsWords, type CheckIn, type InsertCheckIn, type Stats, type SrsWord, type InsertSrsWord } from "@shared/schema";
+import { CORE_4000 } from "./wordBank";
+const CORE_500 = CORE_4000.slice(0, 500);
 import { eq, desc, lte, sql } from "drizzle-orm";
 
 const TURSO_URL = process.env.TURSO_DATABASE_URL!;
@@ -83,6 +85,29 @@ export async function initDb() {
        total_vocab_learned, total_kanji_drilled, total_kanji_in_context, total_minutes_studied,
        total_srs_reviews, total_comprehension_wins, current_streak, longest_streak, last_check_in)
       VALUES (0,0,0,0,0,0,0,0,0,0,0,0,0,0,'')`);
+  }
+
+  // Auto-seed SRS deck with N5 words if deck is empty
+  const { rows: srsRows } = await client.execute("SELECT COUNT(*) as count FROM srs_words");
+  const srsCount = Number((srsRows[0] as any).count ?? 0);
+  if (srsCount === 0) {
+    const today = new Date().toISOString().split("T")[0];
+    const n5Words = CORE_500.filter(w => w.level === "N5");
+    // Stagger due dates: 15 words per day
+    const DAILY = 15;
+    for (let i = 0; i < n5Words.length; i++) {
+      const w = n5Words[i];
+      const daysOffset = Math.floor(i / DAILY);
+      const nextReview = new Date();
+      nextReview.setDate(nextReview.getDate() + daysOffset);
+      const nextReviewStr = nextReview.toISOString().split("T")[0];
+      await client.execute({
+        sql: `INSERT INTO srs_words (word, reading, meaning, level, added_date, next_review, interval, ease_factor, repetitions, last_result)
+              VALUES (?, ?, ?, ?, ?, ?, 1, 2.5, 0, '')`,
+        args: [w.word, w.reading, w.meaning, w.level, today, nextReviewStr],
+      });
+    }
+    console.log(`[seed] Auto-seeded ${n5Words.length} N5 words into SRS deck`);
   }
 }
 
