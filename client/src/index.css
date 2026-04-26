@@ -1,0 +1,145 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Solo Leveling dark RPG palette */
+    --background: 240 20% 5%;
+    --foreground: 220 15% 90%;
+    --card: 240 18% 8%;
+    --card-foreground: 220 15% 90%;
+    --popover: 240 18% 8%;
+    --popover-foreground: 220 15% 90%;
+    --primary: 210 100% 60%;
+    --primary-foreground: 240 20% 5%;
+    --secondary: 240 15% 14%;
+    --secondary-foreground: 220 15% 80%;
+    --muted: 240 15% 12%;
+    --muted-foreground: 220 10% 50%;
+    --accent: 270 80% 65%;
+    --accent-foreground: 240 20% 5%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 220 15% 90%;
+    --border: 240 15% 16%;
+    --input: 240 15% 14%;
+    --ring: 210 100% 60%;
+    --radius: 0.75rem;
+
+    /* Custom RPG tokens */
+    --color-rank-e: #9ca3af;
+    --color-rank-d: #22c55e;
+    --color-rank-c: #3b82f6;
+    --color-rank-b: #a855f7;
+    --color-rank-a: #f59e0b;
+    --color-rank-s: #ef4444;
+    --glow-blue: 0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(59, 130, 246, 0.25);
+    --glow-purple: 0 0 20px rgba(168, 85, 247, 0.5), 0 0 40px rgba(168, 85, 247, 0.25);
+    --glow-gold: 0 0 20px rgba(245, 158, 11, 0.5), 0 0 40px rgba(245, 158, 11, 0.25);
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+    min-height: 100dvh;
+    overscroll-behavior: none;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Rajdhani', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  .glow-blue {
+    box-shadow: var(--glow-blue);
+  }
+
+  .glow-purple {
+    box-shadow: var(--glow-purple);
+  }
+
+  .glow-gold {
+    box-shadow: var(--glow-gold);
+  }
+
+  .text-glow-blue {
+    text-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+  }
+
+  .text-glow-gold {
+    text-shadow: 0 0 20px rgba(245, 158, 11, 0.8);
+  }
+
+  .text-glow-purple {
+    text-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+  }
+
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .scanline {
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.03) 2px,
+      rgba(0, 0, 0, 0.03) 4px
+    );
+  }
+}
+
+/* Animated ring */
+@keyframes ring-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes float-up {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.animate-ring-pulse {
+  animation: ring-pulse 2.5s ease-in-out infinite;
+}
+
+.animate-float-up {
+  animation: float-up 0.4s ease-out forwards;
+}
