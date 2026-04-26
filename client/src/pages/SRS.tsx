@@ -580,7 +580,7 @@ export default function SRS() {
   const canPlay = allWords.length >= 4;  // need words in deck to play
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-4 animate-float-up">
+    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-4 animate-float-up safe-top">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -594,7 +594,7 @@ export default function SRS() {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-4 gap-1">
+      <div className="grid grid-cols-3 gap-1">
         {tabs.map(({ id, label }) => (
           <button
             key={id}

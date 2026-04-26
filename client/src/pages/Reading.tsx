@@ -296,7 +296,7 @@ export default function Reading() {
 
   return (
     <div
-      className="min-h-screen pb-28 relative"
+      className="min-h-screen pb-28 relative safe-top"
       style={{ background: "hsl(240 20% 5%)" }}
       onClick={closePopup}
     >
@@ -306,7 +306,7 @@ export default function Reading() {
       {/* Sticky header */}
       <div className="sticky top-0 z-30 backdrop-blur-md border-b border-white/5"
         style={{ background: "hsl(240 20% 5% / 0.96)" }}>
-        <div className="max-w-lg mx-auto px-4 pt-3 pb-2">
+        <div className="max-w-lg mx-auto px-4 pt-1 pb-2">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-display font-bold text-white tracking-wider">
               {mode === "quiz" ? "⚡ Reading Quiz" : "📖 Reading"}

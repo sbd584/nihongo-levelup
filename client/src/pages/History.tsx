@@ -19,7 +19,7 @@ export default function History() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-5 animate-float-up">
+    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-5 animate-float-up safe-top">
       <div>
         <h1 className="font-display text-xl font-bold tracking-wider">Quest Log</h1>
         <p className="text-xs text-muted-foreground font-display tracking-widest mt-0.5 uppercase">Your study history</p>

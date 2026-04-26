@@ -166,7 +166,7 @@ export default function CheckIn() {
   }
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-4 animate-float-up">
+    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-4 animate-float-up safe-top">
       {/* Header */}
       <div>
         <h1 className="font-display text-xl font-bold tracking-wider">Log Study Session</h1>

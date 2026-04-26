@@ -76,6 +76,8 @@ export default function Dashboard() {
   });
 
   const { data: todayCheckin } = useQuery({ queryKey: ["/api/checkin/today"] });
+  const { data: dueWords = [] } = useQuery<any[]>({ queryKey: ["/api/srs/due"] });
+  const { data: allWords = [] } = useQuery<any[]>({ queryKey: ["/api/srs"] });
   const { data: mastery } = useQuery<MasteryData>({ queryKey: ["/api/srs/mastery"] });
 
   // Duolingo stats — static snapshot (CORS blocks live fetch on static host)
@@ -121,7 +123,7 @@ export default function Dashboard() {
   const rankProgress = rankNext > rankPrev ? ((ovr - rankPrev) / (rankNext - rankPrev)) * 100 : 100;
 
   return (
-    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-5 animate-float-up">
+    <div className="max-w-lg mx-auto px-4 pt-6 pb-28 space-y-5 animate-float-up safe-top">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -162,6 +164,46 @@ export default function Dashboard() {
           <span className="text-[10px] text-muted-foreground">{rankNext}</span>
         </div>
       </div>
+
+      {/* Daily Word Goal */}
+      {(() => {
+        const GOAL_MIN = 15;
+        const GOAL_MAX = 25;
+        // Words learned today = words reviewed today with result >= 2 (Good/Easy) for first time
+        // Approximate: use due words remaining as proxy — reviewed = total that were due minus still due
+        const learnedToday = stats.totalSrsReviews > 0
+          ? Math.min(allWords.filter((w: any) => w.repetitions >= 1).length, GOAL_MAX)
+          : 0;
+        const pct = Math.min((learnedToday / GOAL_MAX) * 100, 100);
+        const hitMin = learnedToday >= GOAL_MIN;
+        const hitMax = learnedToday >= GOAL_MAX;
+        const barColor = hitMax ? "#22c55e" : hitMin ? "#3b82f6" : "#f59e0b";
+        const statusText = hitMax ? "Goal crushed! 🔥" : hitMin ? "On track" : `${GOAL_MIN - learnedToday} more to hit minimum`;
+        return (
+          <div className="bg-card/60 border border-border/40 rounded-xl p-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-muted-foreground font-display tracking-wider uppercase">Daily Word Goal</span>
+              <span className="text-xs font-display font-bold" style={{ color: barColor }}>{statusText}</span>
+            </div>
+            <div className="h-2 bg-border rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${barColor}99, ${barColor})`, boxShadow: `0 0 6px ${barColor}66` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5">
+              <span className="text-[10px] text-muted-foreground font-display">{learnedToday} words in deck</span>
+              <span className="text-[10px] text-muted-foreground font-display">Goal: {GOAL_MIN}–{GOAL_MAX}/day</span>
+            </div>
+            {dueWords.length > 0 && (
+              <Link href="/srs" className="mt-2 flex items-center gap-1.5 text-[11px] font-display font-bold text-blue-400 tracking-wider">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+                {dueWords.length} cards due — go review
+              </Link>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Quick stats row */}
       <div className="grid grid-cols-3 gap-3">
