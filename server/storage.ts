@@ -93,22 +93,26 @@ export async function initDb() {
   if (srsCount === 0) {
     const today = new Date().toISOString().split("T")[0];
     const n5Words = CORE_500.filter(w => w.level === "N5");
-    // Stagger due dates: 15 words per day
     const DAILY = 15;
+    // First batch unlocks today, rest unlock in future — prevents overwhelming
     for (let i = 0; i < n5Words.length; i++) {
       const w = n5Words[i];
-      const daysOffset = Math.floor(i / DAILY);
+      const daysOffset = Math.floor(i / DAILY); // 0..N — day 0 = today
       const nextReview = new Date();
       nextReview.setDate(nextReview.getDate() + daysOffset);
       const nextReviewStr = nextReview.toISOString().split("T")[0];
       await client.execute({
         sql: `INSERT INTO srs_words (word, reading, meaning, level, added_date, next_review, interval, ease_factor, repetitions, last_result)
-              VALUES (?, ?, ?, ?, ?, ?, 1, 2.5, 0, '')`,
+              VALUES (?, ?, ?, ?, ?, ?, 1, 2.5, 0, 'new')`,
         args: [w.word, w.reading, w.meaning, w.level, today, nextReviewStr],
       });
     }
-    console.log(`[seed] Auto-seeded ${n5Words.length} N5 words into SRS deck`);
+    console.log(`[seed] Auto-seeded ${n5Words.length} N5 words, 15/day staggered`);
   }
+
+  // Each day: unlock next batch of words (advance scheduled words to today)
+  // Words with lastResult='new' and nextReview in the future stay locked
+  // getDueSrsWords only returns nextReview <= today, so staggering is automatic
 }
 
 // SM-2 spaced repetition algorithm
@@ -140,6 +144,7 @@ export interface IStorage {
   markWotdViewed(date: string): Promise<void>;
   getSrsWords(): Promise<SrsWord[]>;
   getDueSrsWords(): Promise<SrsWord[]>;
+  getStudiedWords(): Promise<SrsWord[]>;
   addSrsWord(data: InsertSrsWord): Promise<SrsWord>;
   reviewSrsWord(id: number, result: number): Promise<SrsWord>;
   deleteSrsWord(id: number): Promise<void>;
@@ -230,7 +235,17 @@ export class Storage implements IStorage {
 
   async getDueSrsWords(): Promise<SrsWord[]> {
     const today = new Date().toISOString().split('T')[0];
-    return db.select().from(srsWords).where(lte(srsWords.nextReview, today)).all();
+    // Return up to 15 due words per session — matches daily goal
+    const due = await db.select().from(srsWords).where(lte(srsWords.nextReview, today)).all();
+    return due.slice(0, 15);
+  }
+
+  // Words you have actually reviewed at least once (seen by the user)
+  async getStudiedWords(): Promise<SrsWord[]> {
+    return db.select().from(srsWords)
+      .where(sql`last_result != '' AND last_result != 'new'`)
+      .orderBy(desc(srsWords.repetitions))
+      .all();
   }
 
   async addSrsWord(data: InsertSrsWord): Promise<SrsWord> {

@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import type { SrsWord } from "@shared/schema";
 
 type JLPTLevel = "N5" | "N4" | "N3" | "N2" | "N1";
-type MainTab = "games" | "library" | "add";
+type MainTab = "games" | "mywords";
 type GameMode = "flashcard" | "match" | "sentence" | "multichoice";
 
 const levelColors: Record<string, string> = {
@@ -462,20 +462,15 @@ export default function SRS() {
   const [gameSet, setGameSet] = useState<"daily" | "mistakes" | "hard" | "known" | "N5" | "N4" | "N3" | "N2" | "N1">("daily");
   const [gameCount, setGameCount] = useState<number>(10);
 
-  // Add word form
-  const [newWord, setNewWord] = useState("");
-  const [newReading, setNewReading] = useState("");
-  const [newMeaning, setNewMeaning] = useState("");
-  const [newLevel, setNewLevel] = useState<JLPTLevel>("N5");
-
-  // Starter Deck filters
-  const [deckFilter, setDeckFilter] = useState<"N5" | "N4" | "all">("N5");
+  // My Words filters
+  const [myWordsFilter, setMyWordsFilter] = useState<"all" | "new" | "learning" | "known" | "mastered">("all");
 
   const { data: dueWords = [], isLoading: dueLoading } = useQuery<SrsWord[]>({ queryKey: ["/api/srs/due"] });
   const { data: allWords = [] } = useQuery<SrsWord[]>({ queryKey: ["/api/srs"] });
+  const { data: studiedWords = [] } = useQuery<SrsWord[]>({ queryKey: ["/api/srs/studied"], enabled: activeTab === "mywords" });
   const { data: coreWords = [] } = useQuery<CoreWord[]>({
     queryKey: ["/api/core-words"],
-    enabled: activeTab === "library" || activeTab === "games",
+    enabled: activeTab === "games",
   });
 
   const reviewMutation = useMutation({
@@ -486,30 +481,6 @@ export default function SRS() {
       qc.invalidateQueries({ queryKey: ["/api/srs"] });
       qc.invalidateQueries({ queryKey: ["/api/stats"] });
     },
-  });
-
-  const addMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/api/srs/add", data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/srs"] });
-      qc.invalidateQueries({ queryKey: ["/api/srs/due"] });
-      setNewWord(""); setNewReading(""); setNewMeaning("");
-      toast({ title: "Word added to SRS queue ✓" });
-    },
-    onError: () => toast({ title: "Error adding word", variant: "destructive" }),
-  });
-
-  const bulkAddMutation = useMutation({
-    mutationFn: (words: CoreWord[]) =>
-      apiRequest("POST", "/api/srs/bulk-add", {
-        words: words.map(w => ({ word: w.word, reading: w.reading, meaning: w.meaning, level: w.level })),
-      }),
-    onSuccess: (data: any) => {
-      qc.invalidateQueries({ queryKey: ["/api/srs"] });
-      qc.invalidateQueries({ queryKey: ["/api/srs/due"] });
-      toast({ title: `Deck loaded ✓`, description: `${data.added} words added, ~10/day staggered${data.skipped > 0 ? `, ${data.skipped} already in deck` : ""}.` });
-    },
-    onError: () => toast({ title: "Error loading deck", variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -530,15 +501,24 @@ export default function SRS() {
     },
   });
 
-  const inDeckSet = new Set(allWords.map(w => w.word));
-  const filteredCore = coreWords.filter(w => deckFilter === "all" ? true : w.level === deckFilter);
-  const filteredNotInDeck = filteredCore.filter(w => !inDeckSet.has(w.word));
-  const filteredInDeck = filteredCore.filter(w => inDeckSet.has(w.word));
+  // Mastery classification
+  function masteryOf(w: SrsWord): "new" | "learning" | "known" | "mastered" {
+    if (!w.lastResult || w.lastResult === "new" || w.repetitions === 0) return "new";
+    if (w.repetitions < 3 || w.interval < 4) return "learning";
+    if (w.repetitions < 6 || w.interval < 14) return "known";
+    return "mastered";
+  }
+
+  const masteryColors = { new: "#6b7280", learning: "#f59e0b", known: "#3b82f6", mastered: "#22c55e" };
+  const masteryLabels = { new: "New", learning: "Learning", known: "Known", mastered: "Mastered" };
+
+  const myWordsFiltered = myWordsFilter === "all"
+    ? studiedWords
+    : studiedWords.filter(w => masteryOf(w) === myWordsFilter);
 
   const tabs: { id: MainTab; label: string }[] = [
     { id: "games", label: `Games (${dueWords.length})` },
-    { id: "library", label: "Library" },
-    { id: "add", label: "+ Word" },
+    { id: "mywords", label: `My Words (${allWords.filter(w => w.lastResult && w.lastResult !== "new" && w.repetitions > 0).length})` },
   ];
 
   // Build the game word pool based on selected set
@@ -559,7 +539,7 @@ export default function SRS() {
       return [...wrong, ...hardExtra].slice(0, gameCount);
     }
     if (gameSet === "hard") return shuffle(allWords.filter(w => w.lastResult === "again" || w.easeFactor < 2.0)).slice(0, gameCount);
-    if (gameSet === "known") return shuffle(allWords.filter(w => w.repetitions >= 2 && w.interval >= 3)).slice(0, gameCount);
+    if (gameSet === "known") return shuffle(allWords.filter(w => masteryOf(w) === "known" || masteryOf(w) === "mastered")).slice(0, gameCount);
     // N5-N1: pull deck words matching level, fallback to any deck words
     const inDeck = new Set(allWords.map(w => w.word));
     const levelWords = coreWords.filter(w => w.level === gameSet && inDeck.has(w.word))
@@ -594,7 +574,7 @@ export default function SRS() {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-3 gap-1">
+      <div className="grid grid-cols-2 gap-1">
         {tabs.map(({ id, label }) => (
           <button
             key={id}
@@ -733,113 +713,60 @@ export default function SRS() {
         </div>
       )}
 
-      {/* ── CORE 500 STARTER DECK TAB ── */}
-      {activeTab === "library" && (
+      {/* ── MY WORDS TAB ── */}
+      {activeTab === "mywords" && (
         <div className="space-y-4">
-          <div className="bg-card/60 border border-blue-500/20 rounded-xl p-4">
-            <div className="mb-2">
-              <h2 className="font-display text-sm font-bold text-blue-400 tracking-wider">Core 500 Frequency Deck</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Top 500 JLPT N5/N4 words. Introduced ~10/day so you're never overwhelmed.</p>
-            </div>
-            <div className="flex gap-2 mt-3">
-              {(["N5", "N4", "N3", "N2", "N1", "all"] as const).map((f) => (
-                <button key={f} onClick={() => setDeckFilter(f)}
-                  className="flex-1 py-1.5 rounded-lg font-display text-xs font-bold tracking-wider border transition-all"
-                  style={{
-                    borderColor: deckFilter === f ? (f === "all" ? "#3b82f6" : levelColors[f]) : "transparent",
-                    background: deckFilter === f ? `${f === "all" ? "#3b82f6" : levelColors[f]}22` : "rgba(0,0,0,0.3)",
-                    color: deckFilter === f ? (f === "all" ? "#60a5fa" : levelColors[f]) : "#6b7280",
-                  }}>
-                  {f === "all" ? "All" : f}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-3 mt-3 text-center">
-              {[
-                { v: filteredCore.length - filteredNotInDeck.length, l: "In Deck", c: "#22c55e" },
-                { v: filteredNotInDeck.length, l: "To Add", c: "#3b82f6" },
-                { v: filteredCore.length, l: "Total", c: "#e2e8f0" },
-              ].map(({ v, l, c }) => (
-                <div key={l} className="flex-1 bg-background/40 rounded-lg py-2">
-                  <div className="font-display text-sm font-bold" style={{ color: c }}>{v}</div>
-                  <div className="text-[10px] text-muted-foreground font-display">{l}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {filteredNotInDeck.length > 0 && (
-            <button onClick={() => bulkAddMutation.mutate(filteredNotInDeck)} disabled={bulkAddMutation.isPending}
-              className="w-full py-4 rounded-xl font-display text-sm font-bold tracking-widest uppercase transition-all duration-200 active:scale-95 disabled:opacity-50"
-              style={{ background: bulkAddMutation.isPending ? "#1e3a8a" : "linear-gradient(135deg, #1d4ed8, #7c3aed)", boxShadow: bulkAddMutation.isPending ? "none" : "0 0 20px rgba(59,130,246,0.3)" }}>
-              {bulkAddMutation.isPending ? "Loading deck..." : `Add ${filteredNotInDeck.length} ${deckFilter === "all" ? "" : deckFilter + " "}Words`}
-            </button>
-          )}
-          {filteredNotInDeck.length === 0 && filteredCore.length > 0 && (
-            <div className="bg-card/60 border border-green-500/20 rounded-xl p-4 text-center">
-              <div className="text-2xl mb-2">✅</div>
-              <p className="font-display text-sm text-green-400 font-bold">All {deckFilter === "all" ? "500" : deckFilter} words in your deck!</p>
-            </div>
-          )}
-
-          <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
-            {filteredCore.length === 0 && <div className="text-center text-muted-foreground font-display py-8 animate-pulse text-sm">Loading...</div>}
-            {filteredCore.map((w, i) => {
-              const inDeck = inDeckSet.has(w.word);
+          {/* Summary bar */}
+          <div className="grid grid-cols-4 gap-2">
+            {(["new", "learning", "known", "mastered"] as const).map(m => {
+              const count = studiedWords.filter(w => masteryOf(w) === m).length;
+              const isActive = myWordsFilter === m;
               return (
-                <div key={w.word} className="bg-card/40 border border-border/30 rounded-lg px-3 py-2 flex items-center gap-3">
-                  <span className="text-[10px] text-muted-foreground/40 font-display w-6 text-right shrink-0">{i + 1}</span>
-                  <span className="font-display text-sm font-bold text-foreground w-14 shrink-0">{w.word}</span>
-                  <span className="text-xs text-blue-400/70 w-20 shrink-0">{w.reading}</span>
-                  <span className="text-xs text-muted-foreground flex-1 truncate">{w.meaning}</span>
-                  <span className="text-[9px] font-display font-bold px-1.5 py-0.5 rounded border shrink-0"
-                    style={{ color: levelColors[w.level], borderColor: levelColors[w.level] + "33" }}>{w.level}</span>
-                  {inDeck && <span className="text-green-500/70 shrink-0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg></span>}
-                </div>
+                <button key={m} onClick={() => setMyWordsFilter(isActive ? "all" : m)}
+                  className="bg-card/60 border rounded-xl p-2 text-center transition-all active:scale-95"
+                  style={{ borderColor: isActive ? masteryColors[m] : "rgba(255,255,255,0.06)", background: isActive ? `${masteryColors[m]}18` : undefined }}>
+                  <div className="font-display text-base font-bold" style={{ color: masteryColors[m] }}>{count}</div>
+                  <div className="text-[9px] text-muted-foreground font-display tracking-wider uppercase mt-0.5">{masteryLabels[m]}</div>
+                </button>
               );
             })}
           </div>
+
+          {studiedWords.length === 0 ? (
+            <div className="bg-card/60 border border-border/20 rounded-xl p-8 text-center space-y-2">
+              <div className="text-3xl">📚</div>
+              <p className="font-display text-sm font-bold text-muted-foreground">No studied words yet</p>
+              <p className="text-xs text-muted-foreground/60">Review your daily cards to start building your vocabulary list.</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5 max-h-[500px] overflow-y-auto pr-1">
+              {myWordsFiltered.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground text-sm font-display">No {myWordsFilter} words yet</div>
+              )}
+              {myWordsFiltered.map(w => {
+                const m = masteryOf(w);
+                return (
+                  <div key={w.id} className="bg-card/40 border border-border/20 rounded-lg px-3 py-2.5 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-display text-sm font-bold text-foreground">{w.word}</span>
+                        <span className="text-xs text-blue-400/70">{w.reading}</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">{w.meaning}</div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[9px] font-display font-bold px-1.5 py-0.5 rounded border"
+                        style={{ color: levelColors[w.level], borderColor: levelColors[w.level] + "33" }}>{w.level}</span>
+                      <span className="text-[9px] font-display font-bold px-1.5 py-0.5 rounded"
+                        style={{ color: masteryColors[m], background: masteryColors[m] + "18" }}>{masteryLabels[m]}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
-
-      {/* ── ADD WORD TAB ── */}
-      {activeTab === "add" && (
-        <div className="bg-card/60 border border-border/40 rounded-xl p-4 space-y-4">
-          <label className="text-[10px] font-display tracking-widest uppercase text-muted-foreground block">Add a Custom Word</label>
-          {[
-            { label: "Japanese word / kanji", val: newWord, set: setNewWord, ph: "e.g. 勉強", test: "input-new-word" },
-            { label: "Reading (hiragana)", val: newReading, set: setNewReading, ph: "e.g. べんきょう", test: "input-new-reading" },
-            { label: "Meaning (English)", val: newMeaning, set: setNewMeaning, ph: "e.g. Study / to study", test: "input-new-meaning" },
-          ].map(({ label, val, set, ph, test }) => (
-            <div key={label}>
-              <label className="text-xs text-muted-foreground/80 block mb-1.5 font-display">{label}</label>
-              <input type="text" value={val} onChange={e => set(e.target.value)} placeholder={ph} data-testid={test}
-                className="w-full bg-background/60 border border-border/60 rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-blue-500/60 transition-colors" />
-            </div>
-          ))}
-          <div>
-            <label className="text-xs text-muted-foreground/80 block mb-2 font-display">JLPT Level</label>
-            <div className="flex gap-2">
-              {(["N5", "N4", "N3", "N2", "N1"] as JLPTLevel[]).map(lvl => (
-                <button key={lvl} onClick={() => setNewLevel(lvl)}
-                  className="flex-1 py-1.5 rounded-lg font-display text-xs font-bold tracking-wider transition-all border"
-                  style={{ borderColor: newLevel === lvl ? levelColors[lvl] : "transparent", background: newLevel === lvl ? `${levelColors[lvl]}22` : "rgba(0,0,0,0.3)", color: newLevel === lvl ? levelColors[lvl] : "#6b7280" }}>
-                  {lvl}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button
-            onClick={() => { if (!newWord || !newMeaning) { toast({ title: "Add word and meaning at minimum" }); return; } addMutation.mutate({ word: newWord, reading: newReading, meaning: newMeaning, level: newLevel }); }}
-            disabled={addMutation.isPending}
-            className="w-full py-3 rounded-xl font-display text-sm font-bold tracking-widest uppercase transition-all active:scale-95 disabled:opacity-50"
-            style={{ background: "linear-gradient(135deg, #1d4ed8, #7c3aed)", boxShadow: "0 0 16px rgba(59,130,246,0.25)" }}>
-            {addMutation.isPending ? "Adding..." : "Add to Deck"}
-          </button>
-        </div>
-      )}
-
-      {/* ── MY DECK TAB ── */}
-          </div>
+    </div>
   );
 }

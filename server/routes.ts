@@ -124,6 +124,11 @@ export function registerRoutes(httpServer: Server, app: Express) {
     res.json(await storage.getSrsWords());
   });
 
+  // GET /api/srs/studied — words actually reviewed at least once
+  app.get("/api/srs/studied", async (_req, res) => {
+    res.json(await storage.getStudiedWords());
+  });
+
   // GET /api/srs/due
   app.get("/api/srs/due", async (_req, res) => {
     res.json((await storage.getDueSrsWords()).slice(0, 20));
